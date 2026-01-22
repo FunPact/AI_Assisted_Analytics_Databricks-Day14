@@ -1,0 +1,9 @@
+SELECT
+  e.category_id,
+  SUM(p.revenue) AS total_revenue
+FROM
+  ecommerce.gold.products AS p
+  INNER JOIN workspace.default.events_table AS e
+    ON p.product_id = e.product_id
+GROUP BY
+  e.category_id
