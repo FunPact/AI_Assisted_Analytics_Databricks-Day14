@@ -1,0 +1,179 @@
+# Day-14 with IDC Databricks AI Challenge
+
+
+## Sentiment Analysis
+
+
+### Installing Transformers
+%pip install transformers
+
+###Installing Torch
+%pip install torch
+
+### Analyzing Product Review Sentiment
+from transformers import pipeline
+classifier = pipeline("sentiment-analysis")
+reviews = ["This product is amazing!", "Terrible quality, waste of money"]
+results = classifier(reviews)
+print(results)
+
+### Multiple Product Reviews' Sentiment Analysis
+import pandas as pd
+
+product_reviews = [
+    "The product feels well designed and comfortable to use.",
+    "Discreet packaging and smooth delivery experience.",
+    "Quality is decent, but the price feels a bit high.",
+    "Stopped working properly after a few uses.",
+    "Instructions were clear and easy to follow.",
+    "Material feels cheaper than expected.",
+    "Good value for money and easy to maintain.",
+    "Too noisy and not very comfortable.",
+    "Does the job, nothing exceptional.",
+    "Very disappointed with the overall quality."
+]
+
+insights = classifier(product_reviews)
+
+df = pd.DataFrame({
+    "review": product_reviews,
+    "sentiment": [r["label"] for r in insights],
+    "confidence": [r["score"] for r in insights]
+})
+
+display(df)
+
+### Mixed Reviews Sentiment Analysis 🙂
+mixed_reviews = [
+    "It works, I guess 🙂 not bad, but not great either.",
+    "Expected more for the price… looks nice though 😐",
+    "Discreet packaging was appreciated, performance was disappointing 😕"
+]
+
+i = classifier(mixed_reviews)
+
+d = pd.DataFrame({
+    "review": mixed_reviews,
+    "predicted_sentiment": [r["label"] for r in i],
+    "confidence": [round(r["score"], 4) for r in i]
+})
+
+display(d)
+
+
+## Logging to MLflow
+import mlflow
+with mlflow.start_run(run_name="sentiment_model"):
+    mlflow.log_param("model", "distilbert-sentiment")
+    mlflow.log_metric("accuracy", 0.95)
+
+
+## With Genie 
+
+
+### Joining Products and Events Table
+from pyspark.sql import functions as F
+
+### Reading Products Table
+df_products = spark.table("ecommerce.gold.products")
+
+### Reading Events Table
+df_events = spark.table("workspace.default.events_table")
+
+### Joining on Product_ID
+joined_df = df_products.join(df_events, on="product_id", how="inner")
+
+### Showing Sample of Joined Data
+display(joined_df.limit(20))
+
+
+### Ecommerce Analysis Results
+from pyspark.sql import functions as F
+
+### 1. Total Revenue by Category
+revenue_by_category = joined_df.groupBy("category_id").agg(F.sum("revenue").alias("total_revenue")).orderBy(F.desc("total_revenue"))
+display(revenue_by_category)
+
+### 2. Products with Highest Conversion Rate
+highest_conversion = joined_df.groupBy("product_id").agg(F.max("conversion_rate").alias("max_conversion_rate")).orderBy(F.desc("max_conversion_rate")).limit(10)
+display(highest_conversion)
+
+### 3. Trend of Daily Purchases Over Time
+purchases_daily = joined_df.filter(joined_df.event_type == "purchase").groupBy("event_date").agg(F.count("purchases").alias("num_purchases")).orderBy("event_date")
+display(purchases_daily)
+
+### 4. Customers who Viewed but Never Purchased
+views = joined_df.filter(joined_df.event_type == "view").select("user_id").distinct()
+purchases = joined_df.filter(joined_df.event_type == "purchase").select("user_id").distinct()
+view_only_customers = views.join(purchases, on="user_id", how="left_anti")
+display(view_only_customers)
+
+
+### Ecommerce Analysis Visualizations
+import matplotlib.pyplot as plt
+import pandas as pd
+
+### 1. Total Revenue by Category (Bar Chart)
+cat_df = revenue_by_category.toPandas().sort_values('total_revenue', ascending=False)
+plt.figure(figsize=(10,5))
+plt.bar(cat_df['category_id'].astype(str), cat_df['total_revenue'])
+plt.xlabel('Category ID')
+plt.ylabel('Total Revenue')
+plt.title('Total Revenue by Category')
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+### 2. Products with Highest Conversion Rate (Bar Chart)
+conv_df = highest_conversion.toPandas().sort_values('max_conversion_rate', ascending=False)
+plt.figure(figsize=(10,5))
+plt.bar(conv_df['product_id'].astype(str), conv_df['max_conversion_rate'])
+plt.xlabel('Product ID')
+plt.ylabel('Max Conversion Rate')
+plt.title('Top Products by Conversion Rate')
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+### 3. Trend of Daily Purchases over Time (Line Chart)
+purch_df = purchases_daily.toPandas().sort_values('event_date')
+plt.figure(figsize=(10,5))
+plt.plot(purch_df['event_date'], purch_df['num_purchases'], marker='o')
+plt.xlabel('Date')
+plt.ylabel('Number of Purchases')
+plt.title('Daily Purchases Trend')
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+### 4. Customers who Viewed but never Purchased (Count and Sample)
+view_only_df = view_only_customers.toPandas()
+print(f"Number of customers who viewed but never purchased: {len(view_only_df)}")
+print("Sample user IDs:")
+print(view_only_df['user_id'].head(10).to_list())
+
+
+### Top 10 Categories by Total Revenue
+import matplotlib.pyplot as plt
+
+### Converting to Pandas & Sorting
+cat_df = (
+    revenue_by_category
+    .toPandas()
+    .sort_values('total_revenue', ascending=False)
+    .head(10)   ### TOP 10 Only
+)
+
+plt.figure(figsize=(10, 6))
+plt.barh(
+    cat_df['category_id'].astype(str),
+    cat_df['total_revenue']
+)
+
+plt.xlabel('Total Revenue')
+plt.ylabel('Category ID')
+plt.title('Top 10 Categories by Total Revenue')
+
+plt.gca().invert_yaxis()  ### Highest Revenue at Top
+plt.tight_layout()
+plt.show()
