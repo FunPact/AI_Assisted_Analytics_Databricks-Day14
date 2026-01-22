@@ -1,0 +1,4 @@
+review,predicted_sentiment,confidence
+"It works, I guess 🙂 not bad, but not great either.",NEGATIVE,0.9919
+Expected more for the price… looks nice though 😐,POSITIVE,0.9927
+"Discreet packaging was appreciated, performance was disappointing 😕",NEGATIVE,0.9976
